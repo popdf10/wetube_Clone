@@ -443,3 +443,291 @@ export const logout = (req, res) => res.send("Logout");
   ```
 
   
+
+
+
+### pug: view endgine
+
+`npm install pug`
+
+```js
+app.set('view engine', 'pug');
+```
+
+-  pug의 기본 디렉토리는 `/views` (views 디렉토리 만들어줌)
+-  기본 디렉토리를 바꾸고 싶다면 `app.set('views')`  를 통해 바꿔줌(자세한 건 api 문서 참조)
+
+-  pug는 템플릿 언어. 짧은 코드를 html 코드로 바꿔준다
+
+```html
+// home.pug
+p Hello
+
+// home.html
+<p>Hello</p>
+```
+
+-  pug를 웹 사이트에 전송해주려면 `.render`
+
+   ```js
+   res.redner("home");
+   // views 폴더 안의 home.pug 파일을 찾아 렌더링 해줌
+   ```
+
+
+
+#### main.pug
+
+-  모든 템플릿의 베이스가 되는 파일
+
+```js
+doctype html
+	html
+		head
+			title Wetube
+		body
+			main
+				block content
+			footer
+				span &copy; WeTube
+```
+
+-  들여쓰기로 태그를 구분함
+-  `block content` 에 다른 .pug 파일의 내용을 적어줄 수 있다
+
+```js
+// home.pug
+extends layouts/main.pug
+
+block content
+	p Hello
+```
+
+
+
+#### partials
+
+-  페이지의 일부분을 재활용하기 위한 목적으로 따로 만들어 둠
+   ex) `header.pug`, `footer.pug`, `socialLogin.pug`
+
+   ```
+   // footer.pug
+   footer.footer
+   	.footer__icon
+   		i.fab.fa-youtube
+   	span.footer__text &copy; #{new Date().getFullYear()} WeTube
+   ```
+
+   -  `#{}` 을 쓰면 pug 파일 안에 자바스크립트를 쓸 수 있음
+
+-  필요한 곳에 `include`  를 이용해 사용
+
+```
+// main.pug
+...
+include ../partials/footer
+```
+
+
+
+#### res.locals
+
+-  local 변수/함수를 global하게 사용하도록 `app.use(middleware)` 를 해줌
+
+```js
+import routes from "./routes";
+
+export const localMiddleware = (req, res, next) => {
+    res.locals.siteName = "Wetube";
+    res.locals.routes = routes;
+    next();
+}
+```
+
+-  전역적으로 `siteName` 을 `Wetube` 로 쓸 수 있고,
+   `routes`를 쓰면 `routes.js` 를 자동으로 임포트 해줌
+
+   ```
+   // header.pug
+   ...
+   li
+   	a(href=routes.join) Join
+   ```
+
+   
+
+#### 한 템플릿에만 변수를 추가하기(템플릿마다 다른 정보를 가질 수 있도록)
+
+```
+// main.pug
+#{pageTitle}
+```
+
+```js
+// videoController.js
+export const home = (req, res) => res.render("home", {pageTitle: "Home"});
+export const search = (req, res) => res.render("search", {pageTitle: "Search"});
+```
+
+
+
+#### req.query.term
+
+```
+// search.pug
+h3 Searching for: #{searchingby}
+```
+
+```js
+// videoController.js
+export const search = (req, res) => {
+    const {
+        query: {term: searchingBy}
+    } = req;
+    res.render("search", {pageTitle: "Search", searchingBy});
+}
+
+// ES6 이전 코드
+const searchingBy = req.query.term;
+```
+
+
+
+>  #### `routes.js` 에 `/:id` 가 브라우저에 그대로 나옴
+>
+>  `/:id` 는 express에서 쓰이는 표현인데 브라우저는 그걸 몰라서
+>  user/1/edit 가 아니라 user/:id/edit 으로 표현됨
+>
+>  ##### `routes.js` 의 라우트 값을 약간 수정
+>
+>  ```js
+>  userDetail: (id) => {
+>      if(id){
+>          return `users/${id}`;
+>      }else{
+>          return USER_DETAIL;
+>      }
+>  }
+>  ```
+>
+>  ```js
+>  // userRouter.js
+>  ...
+>  userRouter.get(routes.userDetail(), userDetail);
+>  // userDetail → userDetail()
+>  ```
+>
+>  ```
+>  // header.pug
+>  ...
+>  li
+>  	a(href=routes.userDetail(user.id)) Profile
+>  // 템플릿에서는 인자로 id가 필요하다
+>  ```
+
+
+
+#### fake db
+
+```js
+export const videos = {
+    {
+        id: 32957,
+        title: 'Video awessome',
+        description: 'This is something I love',
+        views: 24,
+        videoFile: "https://...",
+    	creator:{
+    		id: 1232,
+    		name: "Nicolas",
+    		email: "nico@las.com"
+		}
+	}
+}
+```
+
+```js
+// videoController.js
+import {videos} from "../db";
+
+export const home = (req, res) => {
+    res.redner("home", {pageTitle: "Home", videos})
+}
+```
+
+-  `home` 템플릿에 `videos` fake db가 전달되어서 title, id, views 등의 정보를 보여줄 수 있음
+
+
+
+```
+// home.pug
+block content
+	.videos
+		each video in videos
+			h1=video.title
+			p=video.views
+```
+
+-  `each~in` : 파이썬의 for문 같이 순회하면서 데이터를 보여줌
+
+
+
+#### mixins
+
+-  웹사이트에서 계속 반복되는 코드를 복사-붙여넣기 하지 않고 재활용하는 방법
+-  각각 다른 정보를 가지지만 같은 구조를 가지는 데이터를 표시하기 위한 방법
+
+```
+// videoBlock.pug
+mixin videoBlock(video = {})
+	h1=video.title
+	p=video.description
+```
+
+```
+// home.pug
+include mixins/videoblock
+
+block content
+	.videos
+		each item in videos
+			+videoblock({
+				title: item.title,
+				description: item.description,
+			})
+```
+
+
+
+#### Router().post
+
+-  url에 정보가 나타나는 get
+-  서버에 정보를 숨겨서 보내는 post
+
+```js
+// globalRouter.js
+
+globalRouter.get(routes.join, getJoin);
+globalRouter.post(routes.join, postJoin);
+```
+
+```js
+// userController.js
+import routes from "../routes";
+
+export const postJoin = (req, res) => {
+    const {
+        body: {name, email, password, password2}
+    } = req;
+    if(password !== password2){
+        res.status(400);            
+        res.render("join", {pageTitle: "Join"});
+    }else{
+        res.redirect(routes.home);
+    }
+
+};
+```
+
+
+
